@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useSelector } from 'react-redux';
 import { updateUserStart, updateUserFailure, updateUserSuccess, signOut, deleteUserStart } from '../redux/user/userSlice.js';
 import { useDispatch } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 const Profile = () => {
   const { currentUser, token } = useSelector((state) => state.user);
@@ -229,6 +229,9 @@ const Profile = () => {
           >
             Update
           </button>
+          <Link to="/create-listing" className="bg-green-600 text-white px-4 py-2 uppercase hover:opacity-90 transition rounded-lg cursor-pointer text-center">
+            Create a new listing   
+          </Link>
         </form>
 
         <div className="flex justify-between mt-6 text-sm">
