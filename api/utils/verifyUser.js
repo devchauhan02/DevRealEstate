@@ -2,13 +2,11 @@ import jwt from 'jsonwebtoken';
 export const verifyToken = (req, res, next) => {
   let token;
 
-  // Check Authorization header first
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith("Bearer ")) {
     token = authHeader.split(" ")[1];
   }
 
-  // If not found, check cookies
   if (!token && req.cookies?.access_token) {
     token = req.cookies.access_token;
   }
