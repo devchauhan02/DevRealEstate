@@ -4,16 +4,30 @@ import OAuth from '../components/OAuth';
 
 const SignUp = () => {
   const [formData, setFormData] = useState({ name: '', email: '', password: '' });
-  const [error, setError] = useState(''); // State to store error messages
+  const [error, setError] = useState('');
   const navigate = useNavigate();
 
   const handleChange = (e) => {
     setFormData((prev) => ({ ...prev, [e.target.id]: e.target.value }));
   };
 
+  const validateInputs = () => {
+    const nameRegex = /^[a-zA-Z][a-zA-Z0-9 ]{1,29}$/;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const passwordRegex = /^.{6,}$/;
+
+    if (!nameRegex.test(formData.name)) return 'Name should start with a letter and be 2-30 characters (letters, numbers, spaces allowed).';
+    if (!emailRegex.test(formData.email)) return 'Please enter a valid email address.';
+    if (!passwordRegex.test(formData.password)) return 'Password must be at least 6 characters.';
+    return '';
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError(''); // Clear previous errors
+    const validationError = validateInputs();
+    if (validationError) return setError(validationError);
+
+    setError('');
     try {
       const res = await fetch('/api/auth/signup', {
         method: 'POST',
@@ -24,50 +38,60 @@ const SignUp = () => {
       });
       const data = await res.json();
       if (res.ok) {
-        console.log('User created successfully');
-        navigate('/signin'); // Redirect to sign-in page after successful signup
+        navigate('/signin');
       } else {
-        setError(data.message || 'Something went wrong'); // Set error message
+        setError(data.message || 'Something went wrong');
       }
     } catch (err) {
-      console.log(err);
-      setError('An unexpected error occurred. Please try again.'); // Handle unexpected errors
+      setError('An unexpected error occurred. Please try again.');
     }
   };
 
   return (
-    <div>
-      <h1 className="text-3xl text-center font-semibold my-7">SignUp</h1>
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <div className="flex flex-col gap-4 max-w-sm mx-auto">
-          {error && <p className="text-red-500 text-center">{error}</p>} {/* Display error */}
+    <div className="mt-10 flex items-center justify-center px-4">
+      <div className="w-full max-w-md  bg-white text-center">
+        <h1 className="text-3xl font-bold mb-1">Join us</h1>
+        <p className="text-gray-600 mb-6">Create a HackerRank account</p>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error && <p className="text-red-500 text-sm text-center">{error}</p>}
           <input
             type="text"
-            placeholder="Name"
-            className="border w-70 border-slate-300 p-2 rounded-lg focus:outline-none"
+            placeholder="Full Name"
+            className="w-full border p-2 rounded-md"
             id="name"
             onChange={handleChange}
           />
           <input
             type="email"
             placeholder="Email"
-            className="border border-slate-300 p-2 rounded-lg focus:outline-none"
+            className="w-full border p-2 rounded-md"
             id="email"
             onChange={handleChange}
           />
           <input
             type="password"
-            placeholder="Password"
-            className="border border-slate-300 p-2 rounded-lg focus:outline-none"
+            placeholder="Your password"
+            className="w-full border p-2 rounded-md"
             id="password"
             onChange={handleChange}
           />
-          <button className="bg-slate-900 text-white p-2 rounded-lg uppercase hover:opacity-90 disabled:opacity-75 cursor-pointer">
-            Sign Up
-          </button>
-          <OAuth /> 
+          <div className="flex items-center text-sm">
+            <input type="checkbox" className="mr-2" required />
+            <span>I agree to the <a href="#" className="text-blue-600">Terms of Service</a> and <a href="#" className="text-blue-600">Privacy Policy</a>.</span>
+          </div>
+          <button className="w-full bg-green-700 cursor-pointer hover:bg-green-800 text-white font-semibold py-2 rounded-md">Sign up</button>
+        </form>
+
+        <div className="my-6 flex items-center justify-center">
+          <hr className="flex-grow border-gray-300" />
+          <span className="mx-4 text-gray-500">or</span>
+          <hr className="flex-grow border-gray-300" />
         </div>
-        <p className="text-center mt-4">
+
+        <OAuth />
+
+        <p className="text-center mt-4 text-sm">
           Already have an account?{' '}
           <button
             type="button"
@@ -77,7 +101,7 @@ const SignUp = () => {
             Sign In
           </button>
         </p>
-      </form>
+      </div>
     </div>
   );
 };

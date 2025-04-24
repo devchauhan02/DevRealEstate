@@ -13,7 +13,7 @@ export default function CreateListing() {
       const uploaders = [...files].map(async (file) => {
         const formData = new FormData();
         formData.append('file', file);
-        formData.append('upload_preset', 'your_upload_preset');
+        formData.append('upload_preset', import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET);
         const res = await fetch(import.meta.env.VITE_CLOUDINARY_API_URL, {
           method: 'POST',
           body: formData,

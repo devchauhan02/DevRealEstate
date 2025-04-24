@@ -36,8 +36,9 @@ const OAuth = () => {
         }
     };
     return (
-        <button onClick={handleGoogleClick} type='button' className="bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 transition duration-300 cursor-pointer">
-            Sign in with Google
+        <button onClick={handleGoogleClick} type='button' className="bg-white text-black py-2 px-4 border font-semibold rounded-lg hover:bg-slate-50 transition duration-300 cursor-pointer w-full">
+            <img src='https://img.icons8.com/color/512/google-logo.png' alt='Google' className='w-6 h-6 mr-2 inline-block' />
+            Continue with Google
         </button>
 
     )
