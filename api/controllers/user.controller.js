@@ -1,5 +1,6 @@
 
 import User from '../models/user.model.js';
+import Listing from '../models/listing.model.js';
 import bcrypt from 'bcryptjs';
 
 export const updateProfilePic = async (req, res) => {
@@ -75,3 +76,21 @@ export const deleteUser = async (req, res , next) => {
     next(error);
   }
 };  
+
+export const getUserListings = async (req, res) => {
+  if (req.user.id !== req.params.id) {
+    return res.status(403).json({ message: 'You can only view your own listing' });
+  }
+  const { id } = req.params;
+
+  try {
+    const listings = await Listing.find({ userRef: id }).populate('userRef', 'name profilePic');  
+    if (!listings) {
+      return res.status(404).json({ message: 'No listings found for this user' });
+    }
+    res.status(200).json(listings);
+  }catch (error) { 
+    
+    res.status(500).json({ message: 'Error fetching user listings', error });
+  }
+}

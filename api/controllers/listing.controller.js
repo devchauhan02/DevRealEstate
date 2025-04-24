@@ -3,7 +3,7 @@ export const createListing = async (req, res,next) => {
     try{
         const listingData = {
             ...req.body,
-            userRef: req.body.userRef
+            userRef: req.user.id,
           };
         const listing = await Listing.create(listingData);
         res.status(201).json(listing);

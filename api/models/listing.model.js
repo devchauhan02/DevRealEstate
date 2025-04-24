@@ -51,9 +51,8 @@ const listingSchema = new mongoose.Schema(
       required: true,
     },
     userRef: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
+      type: String,
+      required: true,  
     },
   },
   { timestamps: true }

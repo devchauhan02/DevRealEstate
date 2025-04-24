@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 
 export default function CreateListing() {
+  const navigate = useNavigate();
   const { currentUser } = useSelector((state) => state.user);
   const [files, setFiles] = useState([]);
   const [error, setError] = useState(false);
@@ -17,18 +19,33 @@ export default function CreateListing() {
     bedrooms: 1,
     bathrooms: 1,
     regularPrice: 50,
-    discountedPrice: 50,
+    discountedPrice: 0,
   });
 
-  const [imageUploadError, setImageUploadError] = useState(false);
+  const [imageUploadError, setImageUploadError] = useState('');
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
 
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => setSuccessMessage(''), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [successMessage]);
+
   const handleImageSubmit = async () => {
-    if (files.length > 0 && files.length + formData.imageUrls.length < 7) {
-      setUploading(true);
-      setImageUploadError(false);
+    if (files.length === 0) return;
+
+    if (formData.imageUrls.length + files.length > 6) {
+      setImageUploadError('You can only upload 6 images per listing');
+      return;
+    }
+
+    setUploading(true);
+    setImageUploadError('');
+
+    try {
       const uploaders = [...files].map(async (file) => {
         const formData = new FormData();
         formData.append('file', file);
@@ -41,16 +58,15 @@ export default function CreateListing() {
         return data.secure_url;
       });
 
-      try {
-        const urls = await Promise.all(uploaders);
-        setFormData((prev) => ({ ...prev, imageUrls: [...prev.imageUrls, ...urls] }));
-        setUploading(false);
-      } catch (err) {
-        setImageUploadError('Image upload failed (2 MB max per image)');
-        setUploading(false);
-      }
-    } else {
-      setImageUploadError('You can only upload 6 images per listing');
+      const urls = await Promise.all(uploaders);
+      setFormData((prev) => ({
+        ...prev,
+        imageUrls: [...prev.imageUrls, ...urls],
+      }));
+    } catch {
+      setImageUploadError('Image upload failed (2 MB max per image)');
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -62,71 +78,87 @@ export default function CreateListing() {
   };
 
   const preventInvalidInput = (e) => {
-    if (["-", "+", "e", "E", "."].includes(e.key)) e.preventDefault();
+    if (['-', '+', 'e', 'E', '.'].includes(e.key)) e.preventDefault();
   };
 
   const validateTextInput = (e) => {
-    const isValid = /^[a-zA-Z][a-zA-Z0-9\s]{2,}$/.test(e.target.value);
-    if (e.target.id !== "address" && !isValid && e.target.value.length > 0) {
-      e.target.setCustomValidity("Minimum 3 characters, must start with a letter");
+    const { id, value } = e.target;
+    const isValid = /^[a-zA-Z][a-zA-Z0-9\s]{2,}$/.test(value);
+    if (id !== 'address' && !isValid && value.length > 0) {
+      e.target.setCustomValidity('Minimum 3 characters, must start with a letter');
     } else {
-      e.target.setCustomValidity("");
+      e.target.setCustomValidity('');
     }
   };
 
   const handleChange = (e) => {
     setSuccessMessage('');
-    if (e.target.id === 'sale' || e.target.id === 'rent') {
-      setFormData((prev) => ({ ...prev, type: e.target.checked ? e.target.id : 'rent' }));
-    } else if (['parking', 'furnished', 'offer'].includes(e.target.id)) {
-      setFormData((prev) => ({ ...prev, [e.target.id]: e.target.checked }));
-    } else if (e.target.id === 'images') {
-      setFiles(e.target.files);
+    const { id, value, checked, files } = e.target;
+
+    if (id === 'sale' || id === 'rent') {
+      setFormData((prev) => ({
+        ...prev,
+        type: checked ? id : 'rent',
+      }));
+    } else if (['parking', 'furnished', 'offer'].includes(id)) {
+      setFormData((prev) => ({
+        ...prev,
+        [id]: checked,
+      }));
+    } else if (id === 'images') {
+      setFiles(files);
     } else {
-      setFormData((prev) => ({ ...prev, [e.target.id]: e.target.value }));
+      setFormData((prev) => ({
+        ...prev,
+        [id]: value,
+      }));
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setImageUploadError(false);
-    setUploading(false);
-    setLoading(true);
+    setImageUploadError('');
+    setError('');
     setSuccessMessage('');
-    const formDataCopy = { ...formData };
+    setLoading(true);
 
-    if (
-      Number(formDataCopy.offer) && // only check if offer is enabled
-      Number(formDataCopy.discountedPrice) >= Number(formDataCopy.regularPrice)
-    ) {
+    const { offer, regularPrice, discountedPrice, imageUrls } = formData;
+
+    if (offer && Number(discountedPrice) >= Number(regularPrice)) {
       setImageUploadError('Discounted price must be less than regular price');
       setLoading(false);
       return;
     }
-    if (formDataCopy.imageUrls.length < 1) {
+
+    if (imageUrls.length === 0) {
       setImageUploadError('Please upload at least one image');
       setLoading(false);
       return;
     }
 
     try {
-      setError(false);
       const res = await fetch('/api/listing/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          ...formDataCopy,
+          ...formData,
           userRef: currentUser.id,
         }),
       });
+
       const data = await res.json();
-      if (res.ok) {
-        setSuccessMessage('Listing created!');
+
+      if (!res.ok) {
+        throw new Error(data.message || 'Something went wrong');
+      }
+      if (res.status === 201) {
+        navigate(`/category/${data._id}`);
       } else {
         setError(data.message || 'Something went wrong');
       }
+      setSuccessMessage('Listing created!');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -139,75 +171,58 @@ export default function CreateListing() {
       <h1 className='text-3xl font-semibold text-center my-7'>Create a Listing</h1>
       <form className='flex flex-col sm:flex-row gap-4' onSubmit={handleSubmit}>
         <div className='flex flex-col gap-4 flex-1'>
-          <input
-            type='text'
-            placeholder='Name'
-            className='border p-3 rounded-lg'
-            id='title'
-            required
-            onInput={validateTextInput}
-            onChange={handleChange}
-            value={formData.title}
-          />
-          <textarea
-            placeholder='Description'
-            className='border p-3 rounded-lg'
-            id='description'
-            required
-            onInput={validateTextInput}
-            onChange={handleChange}
-            value={formData.description}
-          />
-          <input
-            type='text'
-            placeholder='Address'
-            className='border p-3 rounded-lg'
-            id='address'
-            required
-            onInput={validateTextInput}
-            onChange={handleChange}
-            value={formData.address}
-          />
+          {['title', 'description', 'address'].map((field) => (
+            <input
+              key={field}
+              type={field === 'description' ? 'textarea' : 'text'}
+              placeholder={field.charAt(0).toUpperCase() + field.slice(1)}
+              className='border p-3 rounded-lg'
+              id={field}
+              required
+              value={formData[field]}
+              onChange={handleChange}
+              onInput={validateTextInput}
+            />
+          ))}
+
           <div className='flex gap-6 flex-wrap'>
             {['sale', 'rent', 'parking', 'furnished', 'offer'].map((item) => (
-              <div className='flex gap-2' key={item}>
+              <label key={item} className='flex gap-2 items-center'>
                 <input
                   type='checkbox'
                   id={item}
                   className='w-5'
                   onChange={handleChange}
-                  checked={
-                    item === 'sale' || item === 'rent'
-                      ? formData.type === item
-                      : formData[item]
-                  }
+                  checked={item === 'sale' || item === 'rent' ? formData.type === item : formData[item]}
                 />
                 <span className='capitalize'>{item}</span>
-              </div>
+              </label>
             ))}
           </div>
+
           <div className='flex flex-wrap gap-6'>
             {[
               { id: 'bedrooms', label: 'Beds' },
               { id: 'bathrooms', label: 'Baths' },
               { id: 'regularPrice', label: 'Regular price ($ / month)' },
-              { id: 'discountedPrice', label: 'Discounted price ($ / month)' },
-            ].map(({ id, label }) => (
-              <div className='flex items-center gap-2' key={id}>
-                <input
-                  type='number'
-                  id={id}
-                  min='1'
-                  max='100000'
-                  required
-                  onKeyDown={preventInvalidInput}
-                  className='p-3 border border-gray-300 rounded-lg'
-                  onChange={handleChange}
-                  value={formData[id]}
-                />
-                <p>{label}</p>
-              </div>
-            ))}
+            ]
+              .concat(formData.offer ? [{ id: 'discountedPrice', label: 'Discounted price ($ / month)' }] : [])
+              .map(({ id, label }) => (
+                <div className='flex items-center gap-2' key={id}>
+                  <input
+                    type='number'
+                    id={id}
+                    min='1'
+                    max='100000'
+                    required
+                    onKeyDown={preventInvalidInput}
+                    className='p-3 border border-gray-300 rounded-lg'
+                    onChange={handleChange}
+                    value={formData[id]}
+                  />
+                  <p>{label}</p>
+                </div>
+              ))}
           </div>
         </div>
 
@@ -226,34 +241,32 @@ export default function CreateListing() {
               id='images'
               accept='image/*'
               multiple
+              disabled={formData.imageUrls.length >= 6}
             />
             <button
               type='button'
-              disabled={uploading}
+              disabled={uploading || formData.imageUrls.length >= 6}
               onClick={handleImageSubmit}
               className='p-3 text-green-700 border border-green-700 rounded uppercase hover:shadow-lg disabled:opacity-80 hover:cursor-pointer'
             >
               {uploading ? 'Uploading...' : 'Upload'}
             </button>
           </div>
-          <p className='text-red-700 text-sm'>{imageUploadError && imageUploadError}</p>
-          {formData.imageUrls.length > 0 &&
-            formData.imageUrls.map((url, index) => (
-              <div key={url} className='flex justify-between p-3 border items-center'>
-                <img
-                  src={url}
-                  alt='listing image'
-                  className='w-20 h-20 object-contain rounded-lg'
-                />
-                <button
-                  type='button'
-                  onClick={() => handleRemoveImage(index)}
-                  className='p-3 text-red-700 rounded-lg uppercase hover:opacity-75 cursor-pointer'
-                >
-                  Delete
-                </button>
-              </div>
-            ))}
+          {imageUploadError && <p className='text-red-700 text-sm'>{imageUploadError}</p>}
+
+          {formData.imageUrls.map((url, index) => (
+            <div key={url} className='flex justify-between p-3 border items-center'>
+              <img src={url} alt='listing image' className='w-20 h-20 object-contain rounded-lg' />
+              <button
+                type='button'
+                onClick={() => handleRemoveImage(index)}
+                className='p-3 text-red-700 rounded-lg uppercase hover:opacity-75 cursor-pointer'
+              >
+                Delete
+              </button>
+            </div>
+          ))}
+
           <button
             className='p-3 bg-slate-700 text-white rounded-lg uppercase hover:opacity-95 disabled:opacity-80 hover:cursor-pointer'
             disabled={loading}
