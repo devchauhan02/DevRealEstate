@@ -75,6 +75,7 @@ export default function CreateListing() {
   };
 
   const handleChange = (e) => {
+    setSuccessMessage('');
     if (e.target.id === 'sale' || e.target.id === 'rent') {
       setFormData((prev) => ({ ...prev, type: e.target.checked ? e.target.id : 'rent' }));
     } else if (['parking', 'furnished', 'offer'].includes(e.target.id)) {
