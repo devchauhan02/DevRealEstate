@@ -1,10 +1,29 @@
 import { useState } from 'react';
+import { useSelector } from 'react-redux';
 
 export default function CreateListing() {
+  const { currentUser } = useSelector((state) => state.user);
   const [files, setFiles] = useState([]);
-  const [formData, setFormData] = useState({ imageUrls: [] });
+  const [error, setError] = useState(false);
+  const [formData, setFormData] = useState({
+    imageUrls: [],
+    title: '',
+    description: '',
+    address: '',
+    type: 'rent',
+    parking: false,
+    furnished: false,
+    offer: false,
+    bedrooms: 1,
+    bathrooms: 1,
+    regularPrice: 50,
+    discountedPrice: 50,
+  });
+
   const [imageUploadError, setImageUploadError] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
 
   const handleImageSubmit = async () => {
     if (files.length > 0 && files.length + formData.imageUrls.length < 7) {
@@ -55,18 +74,79 @@ export default function CreateListing() {
     }
   };
 
+  const handleChange = (e) => {
+    if (e.target.id === 'sale' || e.target.id === 'rent') {
+      setFormData((prev) => ({ ...prev, type: e.target.checked ? e.target.id : 'rent' }));
+    } else if (['parking', 'furnished', 'offer'].includes(e.target.id)) {
+      setFormData((prev) => ({ ...prev, [e.target.id]: e.target.checked }));
+    } else if (e.target.id === 'images') {
+      setFiles(e.target.files);
+    } else {
+      setFormData((prev) => ({ ...prev, [e.target.id]: e.target.value }));
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setImageUploadError(false);
+    setUploading(false);
+    setLoading(true);
+    setSuccessMessage('');
+    const formDataCopy = { ...formData };
+
+    if (
+      Number(formDataCopy.offer) && // only check if offer is enabled
+      Number(formDataCopy.discountedPrice) >= Number(formDataCopy.regularPrice)
+    ) {
+      setImageUploadError('Discounted price must be less than regular price');
+      setLoading(false);
+      return;
+    }
+    if (formDataCopy.imageUrls.length < 1) {
+      setImageUploadError('Please upload at least one image');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setError(false);
+      const res = await fetch('/api/listing/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...formDataCopy,
+          userRef: currentUser.id,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSuccessMessage('Listing created!');
+      } else {
+        setError(data.message || 'Something went wrong');
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <main className='p-3 max-w-4xl mx-auto'>
       <h1 className='text-3xl font-semibold text-center my-7'>Create a Listing</h1>
-      <form className='flex flex-col sm:flex-row gap-4' onSubmit={(e) => e.preventDefault()}>
+      <form className='flex flex-col sm:flex-row gap-4' onSubmit={handleSubmit}>
         <div className='flex flex-col gap-4 flex-1'>
           <input
             type='text'
             placeholder='Name'
             className='border p-3 rounded-lg'
-            id='name'
+            id='title'
             required
             onInput={validateTextInput}
+            onChange={handleChange}
+            value={formData.title}
           />
           <textarea
             placeholder='Description'
@@ -74,6 +154,8 @@ export default function CreateListing() {
             id='description'
             required
             onInput={validateTextInput}
+            onChange={handleChange}
+            value={formData.description}
           />
           <input
             type='text'
@@ -82,81 +164,52 @@ export default function CreateListing() {
             id='address'
             required
             onInput={validateTextInput}
+            onChange={handleChange}
+            value={formData.address}
           />
           <div className='flex gap-6 flex-wrap'>
-            <div className='flex gap-2'>
-              <input type='checkbox' id='sale' className='w-5' /> <span>Sell</span>
-            </div>
-            <div className='flex gap-2'>
-              <input type='checkbox' id='rent' className='w-5' /> <span>Rent</span>
-            </div>
-            <div className='flex gap-2'>
-              <input type='checkbox' id='parking' className='w-5' /> <span>Parking spot</span>
-            </div>
-            <div className='flex gap-2'>
-              <input type='checkbox' id='furnished' className='w-5' /> <span>Furnished</span>
-            </div>
-            <div className='flex gap-2'>
-              <input type='checkbox' id='offer' className='w-5' /> <span>Offer</span>
-            </div>
+            {['sale', 'rent', 'parking', 'furnished', 'offer'].map((item) => (
+              <div className='flex gap-2' key={item}>
+                <input
+                  type='checkbox'
+                  id={item}
+                  className='w-5'
+                  onChange={handleChange}
+                  checked={
+                    item === 'sale' || item === 'rent'
+                      ? formData.type === item
+                      : formData[item]
+                  }
+                />
+                <span className='capitalize'>{item}</span>
+              </div>
+            ))}
           </div>
           <div className='flex flex-wrap gap-6'>
-            <div className='flex items-center gap-2'>
-              <input
-                type='number'
-                id='bedrooms'
-                min='1'
-                max='10'
-                required
-                onKeyDown={preventInvalidInput}
-                className='p-3 border border-gray-300 rounded-lg'
-              />
-              <p>Beds</p>
-            </div>
-            <div className='flex items-center gap-2'>
-              <input
-                type='number'
-                id='bathrooms'
-                min='1'
-                max='10'
-                required
-                onKeyDown={preventInvalidInput}
-                className='p-3 border border-gray-300 rounded-lg'
-              />
-              <p>Baths</p>
-            </div>
-            <div className='flex items-center gap-2'>
-              <input
-                type='number'
-                id='regularPrice'
-                min='1'
-                max='100000'
-                required
-                onKeyDown={preventInvalidInput}
-                className='p-3 border border-gray-300 rounded-lg'
-              />
-              <div className='flex flex-col items-center'>
-                <p>Regular price</p>
-                <span className='text-xs'>($ / month)</span>
+            {[
+              { id: 'bedrooms', label: 'Beds' },
+              { id: 'bathrooms', label: 'Baths' },
+              { id: 'regularPrice', label: 'Regular price ($ / month)' },
+              { id: 'discountedPrice', label: 'Discounted price ($ / month)' },
+            ].map(({ id, label }) => (
+              <div className='flex items-center gap-2' key={id}>
+                <input
+                  type='number'
+                  id={id}
+                  min='1'
+                  max='100000'
+                  required
+                  onKeyDown={preventInvalidInput}
+                  className='p-3 border border-gray-300 rounded-lg'
+                  onChange={handleChange}
+                  value={formData[id]}
+                />
+                <p>{label}</p>
               </div>
-            </div>
-            <div className='flex items-center gap-2'>
-              <input
-                type='number'
-                id='discountPrice'
-                min='1'
-                max='100000'
-                required
-                onKeyDown={preventInvalidInput}
-                className='p-3 border border-gray-300 rounded-lg'
-              />
-              <div className='flex flex-col items-center'>
-                <p>Discounted price</p>
-                <span className='text-xs'>($ / month)</span>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
+
         <div className='flex flex-col flex-1 gap-4'>
           <p className='font-semibold'>
             Images:
@@ -194,15 +247,20 @@ export default function CreateListing() {
                 <button
                   type='button'
                   onClick={() => handleRemoveImage(index)}
-                  className='p-3 text-red-700 rounded-lg uppercase hover:opacity-75 hover-cursor-pointer'
+                  className='p-3 text-red-700 rounded-lg uppercase hover:opacity-75 cursor-pointer'
                 >
                   Delete
                 </button>
               </div>
             ))}
-          <button className='p-3 bg-slate-700 text-white rounded-lg uppercase hover:opacity-95 disabled:opacity-80 hover:cursor-pointer'>
-            Create Listing
+          <button
+            className='p-3 bg-slate-700 text-white rounded-lg uppercase hover:opacity-95 disabled:opacity-80 hover:cursor-pointer'
+            disabled={loading}
+          >
+            {loading ? 'Creating...' : 'Create Listing'}
           </button>
+          {successMessage && <p className='text-green-700 text-lg font-semibold text-center mt-2'>{successMessage}</p>}
+          {error && <p className='text-red-700 text-sm mt-2'>{error}</p>}
         </div>
       </form>
     </main>
